@@ -105,23 +105,15 @@ if [ -e "${METEOR_DIR}" ]; then
    sh /tmp/meteor.sh
    rm /tmp/meteor.sh
 
-   if [ -f package.json ]; then
-      echo "Installing application-side NPM dependencies..."
-      npm install --production
-   fi
+   #if [ -f package.json ]; then
+   #    echo "Installing application-side NPM dependencies..."
+   #    npm install --production
+   #fi
 
-   # Bundle the Meteor app
-   echo "Building the bundle...(this may take a while)"
-   mkdir -p ${APP_DIR}
-   meteor build --directory ${APP_DIR}
-fi
+   echo "Installing NPM prerequisites..."
+   # Install all NPM packages
+   npm install
 
-# If we were given a BUNDLE_URL, download the bundle
-# from there.
-if [ -n "${BUNDLE_URL}" ]; then
-   echo "Downloading Application bundle from ${BUNDLE_URL}..."
-   curl ${CURL_OPTS} -o /tmp/bundle.tgz ${BUNDLE_URL}
-   tar xf /tmp/bundle.tgz -C ${APP_DIR}
 fi
 
 # Locate the actual bundle directory
@@ -131,51 +123,6 @@ if [ ! -e ${BUNDLE_DIR:=$(find ${APP_DIR} -type d -name bundle -print |head -n1)
    BUNDLE_DIR=${APP_DIR}
 fi
 
-# Install NPM modules
-if [ -e ${BUNDLE_DIR}/programs/server ]; then
-   pushd ${BUNDLE_DIR}/programs/server/
-
-   # Check Meteor version
-   echo "Checking Meteor version..."
-   set +e # Allow the next command to fail
-   semver -r '>=1.3.1' $(cat config.json | jq .meteorRelease | tr -d '"' | cut -f2 -d'@' | cut -d'.' -f1-3)
-   if [ $? -ne 0 ]; then
-      echo "Application's Meteor version is less than 1.3.1; please use ulexus/meteor:legacy"
-
-      if [ -Z "${IGNORE_METEOR_VERSION}" ]; then
-         exit 1
-      fi
-   fi
-   set -e
-
-   echo "Installing NPM prerequisites..."
-   # Install all NPM packages
-   npm install
-   popd
-else
-   echo "Unable to locate server directory in ${BUNDLE_DIR}; hold on: we're likely to fail"
-fi
-
-if [ ! -e ${BUNDLE_DIR}/main.js ]; then
-   echo "Failed to locate main.js in ${BUNDLE_DIR}; cannot start application."
-   exit 1
-fi
-
-# Process settings sources, if they exist
-if [ -f "${SETTINGS_FILE}" ]; then
-   export METEOR_SETTINGS=$(cat ${SETTINGS_FILE})
-fi
-if [ "x${SETTINGS_URL}" != "x" ]; then
-   TMP_SETTINGS=$(curl -s ${SETTINGS_URL})
-   if [ $? -eq 0 ]; then
-      export METEOR_SETTINGS=${TMP_SETTINGS}
-   else
-      echo "Failed to retrieve settings from URL (${SETTINGS_URL}); exiting."
-      exit 1
-   fi
-fi
-
 # Run meteor
-cd ${BUNDLE_DIR}
 echo "Starting Meteor Application..."
-exec node ./main.js
+exec meteor --port 8080 --settings ${SRC_DIR}/mac-settings.json
